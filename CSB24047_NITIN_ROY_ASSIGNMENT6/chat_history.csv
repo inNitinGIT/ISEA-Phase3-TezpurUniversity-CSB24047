@@ -13,3 +13,6 @@ timestamp,sender,receiver,message_type,message
 2026-07-11 19:58:39,user1,Server,system_leave,user1 disconnected.
 2026-07-11 19:58:42,user2,Server,system_leave,user2 disconnected.
 2026-07-11 20:17:21,user3,ALL,broadcast,user4 hi
+2026-07-11 20:28:10,user7,ALL,broadcast,/msg<user6>hi
+2026-07-11 20:28:25,user7,ALL,broadcast,/msg<user6>
+2026-07-11 20:36:11,user1,user3,private,hi

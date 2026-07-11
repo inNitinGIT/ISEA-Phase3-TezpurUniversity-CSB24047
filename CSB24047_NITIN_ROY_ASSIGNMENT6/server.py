@@ -114,7 +114,7 @@ def handle_client_worker(client_socket, client_address):
         
         # Task 1: Broadcast Join Notification
         print(f"CONNECTED : {username}")
-        broadcast_system_message(f"[SERVER] {username} joined the chat.", exclude_user=username)
+        broadcast_system_message(f"JOIN: {username} ", exclude_user=username)
         update_and_display_dashboard()
         
         while True:
@@ -172,7 +172,7 @@ def handle_client_worker(client_socket, client_address):
                     clients[username]["status"] = "OFFLINE"
             
             print(f"DISCONNECTED : {username}")
-            broadcast_system_message(f"[SERVER] {username} left the chat.")
+            broadcast_system_message(f"LEAVE: {username}")
             log_chat_event(username, "Server", "system_leave", f"{username} disconnected.")
             update_and_display_dashboard()
             

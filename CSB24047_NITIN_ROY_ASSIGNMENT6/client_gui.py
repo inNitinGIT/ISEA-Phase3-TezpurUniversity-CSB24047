@@ -115,15 +115,29 @@ class ChatClientGUI:
         receiver_thread.start()
 
     def send_message(self):
-        """Handles sending messages to the server."""
+        """Handles sending broadcast and private messages to the server."""
         message = self.msg_entry.get().strip()
         if message:
+            # Check if a user is selected in the listbox for a private message
+            selected_indices = self.user_listbox.curselection()
+            
+            if selected_indices:
+                target_user = self.user_listbox.get(selected_indices[0])
+                # Deselect to avoid accidentally sending the next message privately
+                self.user_listbox.selection_clear(0, tk.END) 
+                
+                # Format for private message (ensure your server logic matches this)
+                final_message = f"/msg {target_user} {message}"
+                self.append_message(f"[Private to {target_user}]: {message}")
+            else:
+                # Standard broadcast message
+                final_message = message 
+                
             try:
-                self.sock.sendall(message.encode('utf-8'))
-                self.msg_entry.delete(0, tk.END) # Clear the input box after sending
+                self.sock.sendall(final_message.encode('utf-8'))
+                self.msg_entry.delete(0, tk.END) # Clear the input box
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to send message: {e}")
-
     def append_message(self, message):
         """Helper method to add text to the chat display and auto-scroll."""
         self.chat_display.config(state='normal') # Enable editing temporarily
@@ -154,12 +168,32 @@ class ChatClientGUI:
                     self.append_message("[System] Disconnected from server.")
                     break
                 
-                # Append the received text to the GUI
-                self.append_message(data.decode('utf-8'))
-            except:
+                decoded_data = data.decode('utf-8')
+                
+                # Simple parsing logic - server should prepend tags like "JOIN:" or "LEAVE:"
+                if decoded_data.startswith("JOIN:"):
+                    new_user = decoded_data.split(":", 1)[1]
+                    self.add_user_to_list(new_user)
+                    self.append_message(f"[System] {new_user} has joined the chat.")
+                    
+                elif decoded_data.startswith("LEAVE:"):
+                    leaving_user = decoded_data.split(":", 1)[1]
+                    self.remove_user_from_list(leaving_user)
+                    self.append_message(f"[System] {leaving_user} has left the chat.")
+                    
+                elif decoded_data.startswith("USERLIST:"):
+                    # Example format from server: "USERLIST:Alice,Bob,Charlie"
+                    users = decoded_data.split(":", 1)[1].split(",")
+                    for u in users:
+                        if u: self.add_user_to_list(u)
+                        
+                else:
+                    # Standard broadcast or private message received
+                    self.append_message(decoded_data)
+                    
+            except Exception as e:
                 self.append_message("[System] Connection closed.")
                 break
-
     def disconnect(self):
         """Safely closes the socket and exits the application."""
         if self.sock:
