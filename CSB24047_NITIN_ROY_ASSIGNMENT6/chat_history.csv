@@ -12,3 +12,4 @@ timestamp,sender,receiver,message_type,message
 2026-07-11 19:58:34,user1,ALL,broadcast,i am also well
 2026-07-11 19:58:39,user1,Server,system_leave,user1 disconnected.
 2026-07-11 19:58:42,user2,Server,system_leave,user2 disconnected.
+2026-07-11 20:17:21,user3,ALL,broadcast,user4 hi
