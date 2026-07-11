@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
+import tkinter.scrolledtext as scrolledtext
 import socket
 import threading
 
@@ -7,14 +8,16 @@ class ChatClientGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("TCP Chat Client")
-        self.root.geometry("500x600")
+        self.root.geometry("750x600")
         
         # Networking Configuration
         self.server_ip = "10.0.0.1" # Using the Mininet IP from your script
         self.port = 5000
         self.sock = None
         self.username = ""
-        
+
+        #fixing connection error- chat client gui object has no attribute onlie_users
+        self.online_users=[]
         # Start with the login window
         self.create_login_window()
 
@@ -76,9 +79,23 @@ class ChatClientGUI:
         tk.Label(top_frame, text=f"Logged in as: {self.username}", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT)
         tk.Button(top_frame, text="Disconnect", command=self.disconnect, bg="#f44336", fg="white").pack(side=tk.RIGHT)
 
+       #--middle area for chat display+user list 
+        middle_frame = tk.Frame(self.chat_frame)
+        middle_frame.pack(expand=True,fill=tk.BOTH,pady = (0,10))
+
+        
         # --- Scrollable Message Area ---
-        self.chat_display = scrolledtext.ScrolledText(self.chat_frame, wrap=tk.WORD, state='disabled', font=("Helvetica", 10))
+        self.chat_display = scrolledtext.ScrolledText(middle_frame, wrap=tk.WORD, state='disabled', font=("Helvetica", 10))
         self.chat_display.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
+
+        #Online User List(Right side)
+        user_list_frame = tk.Frame(middle_frame, width=150)
+        user_list_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        user_list_frame.pack_propagate(False) # Force the frame to keep its width
+
+        tk.Label(user_list_frame, text="Online Users", font=("Helvetica", 10, "bold"), bg="#ddd").pack(fill=tk.X)
+        self.user_listbox = tk.Listbox(user_list_frame, font=("Helvetica", 10))
+        self.user_listbox.pack(expand=True, fill=tk.BOTH)
 
         # --- Bottom Bar (Input & Send) ---
         bottom_frame = tk.Frame(self.chat_frame)
@@ -89,6 +106,9 @@ class ChatClientGUI:
         self.msg_entry.bind('<Return>', lambda event: self.send_message()) # Hit Enter to send
 
         tk.Button(bottom_frame, text="Send", command=self.send_message, bg="#2196F3", fg="white", width=10).pack(side=tk.RIGHT)
+          
+          #add ourselves to the list initially 
+        self.add_user_to_list(self.username)
 
         # --- Start Background Receiver (Prep for Task 5) ---
         receiver_thread = threading.Thread(target=self.receive_messages, daemon=True)
@@ -110,6 +130,20 @@ class ChatClientGUI:
         self.chat_display.insert(tk.END, message + "\n")
         self.chat_display.config(state='disabled') # Disable editing to prevent user typing
         self.chat_display.see(tk.END) # Automatic scrolling to the bottom
+
+    def add_user_to_list(self,user):
+        """Adds a user to the GUI listbox."""
+        if user not in self.online_users:
+            self.online_users.append(user)
+            self.user_listbox.insert(tk.END, user)
+    
+    def remove_user_from_list(self, user):
+        """Removes a user from the GUI listbox."""
+        if user in self.online_users:
+            self.online_users.remove(user)
+            self.user_listbox.delete(0, tk.END) # Clear listbox
+            for u in self.online_users:         # Repopulate
+                self.user_listbox.insert(tk.END, u)
 
     def receive_messages(self):
         """Listens for incoming messages from the server in a background thread."""
@@ -134,7 +168,6 @@ class ChatClientGUI:
             except:
                 pass
         self.root.quit()
-
 
 
 

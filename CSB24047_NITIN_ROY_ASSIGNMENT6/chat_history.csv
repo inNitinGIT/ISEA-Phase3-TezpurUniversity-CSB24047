@@ -1,0 +1,14 @@
+timestamp,sender,receiver,message_type,message
+2026-07-11 19:37:08,rohan,Server,system_leave,rohan disconnected.
+2026-07-11 19:49:24,nitin,Server,system_leave,nitin disconnected.
+2026-07-11 19:50:25,Nitin Roy,Server,system_leave,Nitin Roy disconnected.
+2026-07-11 19:52:05,Nitin r,ALL,broadcast,hi
+2026-07-11 19:52:15,Nitin r,ALL,broadcast,every one
+2026-07-11 19:52:17,Nitin r,Server,system_leave,Nitin r disconnected.
+2026-07-11 19:57:43,user2,ALL,broadcast,hi every one
+2026-07-11 19:57:57,user1,ALL,broadcast,how are boy
+2026-07-11 19:58:04,user2,ALL,broadcast,i am well
+2026-07-11 19:58:26,user2,ALL,broadcast,and about you
+2026-07-11 19:58:34,user1,ALL,broadcast,i am also well
+2026-07-11 19:58:39,user1,Server,system_leave,user1 disconnected.
+2026-07-11 19:58:42,user2,Server,system_leave,user2 disconnected.
