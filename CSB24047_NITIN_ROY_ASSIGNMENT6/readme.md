@@ -1,52 +1,54 @@
 # GUI-Based Multi-Client Chat Application Using TCP
 
-A Python-based **GUI chat application** that allows multiple clients to communicate over a TCP network. The project reuses the networking logic from Assignment 5 and replaces the terminal client with a graphical interface built using **Tkinter**.
+A Python chat application that lets multiple clients communicate over TCP, using a Tkinter GUI client and a multithreaded TCP server. This project extends the terminal-based chat system from Assignment 5 by replacing the terminal client with a graphical desktop interface, while reusing the server and networking logic unchanged.
+
+**Author:** Nitin Roy
+**Roll No:** CSB24047
+**Course:** ISEA Networking Internship, Tezpur University
+**Assignment:** Assignment 6 – GUI-Based Multi-Client Chat Application Using TCP
 
 ---
 
-## Project Objective
-
-The goal of this project is to:
+## Objective
 
 - Convert the terminal-based TCP chat client into a GUI application.
-- Reuse the existing TCP server implementation.
+- Reuse the existing TCP server implementation from Assignment 5 with minimal changes.
 - Learn GUI programming using Tkinter.
 - Handle multiple clients using threads.
-- Keep the networking logic separate from the GUI.
+- Keep networking logic separate from the GUI.
 
 ---
 
 ## Features
 
-### Server
-- Accepts multiple client connections.
-- Broadcast messaging.
-- Private messaging.
-- Tracks online users.
-- Stores chat history in a CSV file.
-- Displays live server statistics.
-- Join and leave notifications.
+### Server (`server.py`)
+- Accepts multiple client connections, one worker thread per client.
+- Broadcast messaging to all online users.
+- Private messaging via `/msg <username> <message>`.
+- Tracks online/offline user state.
+- Logs all chat activity to `chat_history.csv` (timestamp, sender, receiver, type, message).
+- Displays a live server statistics dashboard (connected users, messages processed, broadcast/private counts).
+- Join and leave notifications broadcast to all clients.
 
-### Client (GUI)
-- Simple login window.
-- Chat window with scrollable messages.
-- Send messages using a button or Enter key.
-- Online users list.
-- Private messaging by selecting a user.
-- Disconnect button.
-- Background thread for receiving messages without freezing the GUI.
+### Client GUI (`client_gui.py`)
+- Login window with username entry and Connect button, with input validation.
+- Chat window with a scrollable, auto-scrolling message area.
+- Online users list — select a user to automatically send a private message.
+- Send messages via button click or Enter key.
+- Disconnect button for a clean session exit.
+- Background thread for receiving messages, so the GUI never freezes while waiting on the network.
 
 ---
 
 ## Technologies Used
 
 - Python 3
-- Socket Programming
-- Tkinter
+- Socket programming (TCP)
+- Tkinter (`tkinter`, `tkinter.scrolledtext`)
 - Threading
-- CSV
-- Mininet
-- Wireshark (for packet verification)
+- CSV (chat history persistence)
+- Mininet (network emulation)
+- Wireshark (packet-level verification)
 
 ---
 
@@ -58,12 +60,18 @@ The goal of this project is to:
 ├── client_gui.py
 ├── chat_history.csv
 ├── screenshots/
-│   ├── login.png
-│   ├── chat_window.png
-│   ├── broadcast.png
+│   ├── loginwindow.png
+│   ├── successful_connecting.png
+│   ├── mainchat_window.png
+│   ├── broadcast_message.png
 │   ├── private_message.png
-│   └── ...
-├── report.pdf
+│   ├── client_connection.png
+│   ├── user_leaving.png
+│   ├── nodes.png
+│   ├── net.png
+│   └── pingall.png
+├── capture.pcapng
+├── Assignment6_Report.docx
 └── README.md
 ```
 
@@ -71,11 +79,10 @@ The goal of this project is to:
 
 ## Network Topology
 
-The application is tested using **Mininet**.
+Tested using Mininet with one server host and four client hosts on a single switch:
 
 ```
 h1  ---> Chat Server
-
 h2  ---> Client A
 h3  ---> Client B
 h4  ---> Client C
@@ -88,7 +95,7 @@ Start Mininet:
 sudo mn --topo single,5
 ```
 
-Verify the network:
+Verify connectivity:
 
 ```bash
 nodes
@@ -98,146 +105,71 @@ pingall
 
 ---
 
-## How to Run
+## Execution Steps
 
-### Step 1: Start the Server
-
-On **h1**
+**1. Start the server** (on h1):
 
 ```bash
 python3 server.py
 ```
 
----
-
-### Step 2: Start Clients
-
-On each client (h2, h3, h4, h5)
+**2. Start each client** (on h2, h3, h4, h5):
 
 ```bash
 python3 client_gui.py
 ```
 
----
-
-### Step 3: Login
-
-- Enter a username.
+**3. Log in:**
+- Enter a username in the login window.
 - Click **Connect**.
+- The chat window opens automatically on a successful connection.
 
-The chat window will open after a successful connection.
-
----
-
-## Messaging
-
-### Broadcast Message
-
-Simply type a message and click **Send**.
-
-Everyone connected to the server will receive it.
+**4. Chat:**
+- **Broadcast:** type a message and click **Send** — all connected users receive it.
+- **Private message:** select a user from the **Online Users** list, type a message, and click **Send** — only that user receives it.
 
 ---
 
-### Private Message
+## Implementation Summary
 
-1. Select a user from the **Online Users** list.
-2. Type your message.
-3. Click **Send**.
-
-The message will only be delivered to the selected user.
+The client and server communicate over a single TCP connection per client on port `5000`. The server (`server.py`) is largely unchanged from Assignment 5: it still accepts connections, spawns a thread per client, tracks state in a shared `clients` dictionary, and logs every event to `chat_history.csv`. The only substantial change is on the client side — `client_gui.py` replaces Assignment 5's `input()`/`print()` terminal loop with Tkinter widgets (login form, scrollable chat log, online-users listbox, message entry, and buttons), and moves message reception into a dedicated background thread so the interface stays responsive while waiting on `socket.recv()`.
 
 ---
 
-## Server Statistics
+## Sample Screenshots
 
-The server continuously displays:
+| Login Window | Successful Connection | Main Chat Window |
+|---|---|---|
+| `screenshots/loginwindow.png` | `screenshots/successful_connecting.png` | `screenshots/mainchat_window.png` |
 
-- Connected users
-- Total messages processed
-- Broadcast messages
-- Private messages
-
----
-
-## Chat History
-
-The server stores chat history in:
-
-```
-chat_history.csv
-```
-
-Each record contains:
-
-- Timestamp
-- Sender
-- Receiver
-- Message type
-- Message
-
----
-
-## GUI Components
-
-The client interface includes:
-
-- Login screen
-- Username input
-- Chat display
-- Scrollable message area
-- Online users list
-- Message input box
-- Send button
-- Disconnect button
-
----
-
-## Testing
-
-The project was tested with multiple clients connected simultaneously.
-
-The following features were verified:
-
-- User login
-- Multiple client connections
-- Broadcast messaging
-- Private messaging
-- Online user updates
-- User join notifications
-- User leave notifications
-- Client disconnection
+Additional screenshots (broadcast messaging, private messaging, Mininet topology commands, and Wireshark captures for connection/broadcast/private-message/disconnection) are included in the `screenshots/` folder and detailed in `Assignment6_Report.docx`.
 
 ---
 
 ## Wireshark Verification
 
-Traffic was captured using:
+Traffic captured with filter:
 
 ```
 tcp.port == 5000
 ```
 
-The capture verifies:
-
-- Client connection
-- Broadcast messages
-- Private messages
-- Client disconnection
+Confirms, at the packet level:
+- TCP three-way handshake on client connection
+- Server fan-out of a broadcast message to all connected clients
+- Point-to-point delivery of a private message to a single client
+- FIN/ACK exchange on client disconnection
 
 ---
 
 ## Components Reused from Assignment 5
 
-The following networking features were reused:
-
-- TCP socket communication
-- Multi-client server
-- Broadcast messaging
-- Private messaging
-- Chat history logging
-- Client management
-- Thread handling
+- TCP socket communication (connect/send/recv, port 5000)
+- Multi-client server with per-client threads
+- Broadcast messaging logic
+- Private messaging (`/msg` command)
+- Chat history logging to CSV
+- Client/session state management and join/leave notifications
 
 Only the client interface was changed from terminal-based to GUI.
 
@@ -245,23 +177,16 @@ Only the client interface was changed from terminal-based to GUI.
 
 ## Future Improvements
 
-Some possible enhancements include:
-
-- User authentication
-- Encrypted communication
+- User authentication (password field)
+- Encrypted communication (TLS)
 - File sharing
-- Group chat
-- Emoji support
-- Message timestamps in the GUI
-- Better UI design
+- Group chat / channels
+- Message timestamps displayed in the GUI
+- Emoji support and improved UI styling
 - Dark mode
 
 ---
 
-## Author
+## Report
 
-**Name:** *Nitin Roy*
-
-**Course:**Isea Networking Internship
-
-**Assignment:** GUI-Based Multi-Client Chat Application Using TCP
+Full report with GUI design decisions, testing results, and Wireshark verification: [`Assignment6_Report.docx`](./Assignment6_Report.docx)
