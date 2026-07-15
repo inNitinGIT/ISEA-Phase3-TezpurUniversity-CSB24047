@@ -1,0 +1,12 @@
+[2026-07-15 14:41:33] SUCCESSFUL_LOGIN | User: user1 | Host: 10.0.0.3:48900 | Info: Session established successfully (REGISTERED).
+[2026-07-15 14:41:42] DUPLICATE_LOGIN_BLOCKED | User: user1 | Host: 10.0.0.2:60460 | Info: Prevented concurrent active session.
+[2026-07-15 14:42:05] SUCCESSFUL_LOGIN | User: user2 | Host: 10.0.0.2:52528 | Info: Session established successfully (REGISTERED).
+[2026-07-15 14:42:47] FAILED_LOGIN | User: user2 | Host: 10.0.0.3:56188 | Info: Incorrect password (Attempt 1/5).
+[2026-07-15 14:42:53] FAILED_LOGIN | User: user2 | Host: 10.0.0.3:56204 | Info: Incorrect password (Attempt 2/5).
+[2026-07-15 14:42:56] FAILED_LOGIN | User: user2 | Host: 10.0.0.3:49178 | Info: Incorrect password (Attempt 3/5).
+[2026-07-15 14:43:01] FAILED_LOGIN | User: user2 | Host: 10.0.0.3:49184 | Info: Incorrect password (Attempt 4/5).
+[2026-07-15 14:43:04] FAILED_LOGIN | User: user2 | Host: 10.0.0.3:35184 | Info: Incorrect password (Attempt 5/5).
+[2026-07-15 14:43:04] ACCOUNT_LOCKED | User: user2 | Host: 10.0.0.3:35184 | Info: Lockout state activated for 5 minutes.
+[2026-07-15 14:43:17] FAILED_LOGIN | User: user1 | Host: 10.0.0.3:50614 | Info: Incorrect password (Attempt 1/5).
+[2026-07-15 14:46:43] SESSION_TIMEOUT | User: user1 | Host: 10.0.0.3:48900 | Info: Disconnected due to inactivity.
+[2026-07-15 14:47:13] SESSION_TIMEOUT | User: user2 | Host: 10.0.0.2:52528 | Info: Disconnected due to inactivity.
