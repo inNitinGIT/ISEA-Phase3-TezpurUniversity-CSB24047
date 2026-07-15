@@ -3,6 +3,7 @@ import threading
 import datetime
 import csv
 import os
+import hashlib
 
 # Network Setup Configuration
 HOST = '0.0.0.0'
@@ -23,6 +24,58 @@ server_stats = {
 }
 
 HISTORY_FILE = "chat_history.csv" 
+CREDENTIALS_FILE = "users.csv"
+
+def init_csv_stores():
+    if not os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE,mode ='w',newline='',encoding ='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(["timestamp","sender","receiver","message_type","message"])
+
+    #new : users credentials init
+    if not os.path.exits(CREDENTIALS_FILE):
+        with open(CREDENTIALS_FILE,mode ='w',newline='',encoding='utf-8')as f:
+            writer = csv.writer(f)
+            writer.writerow(["username","password_has"])
+
+def hash_password(password):
+    """Hashes the password using SHA-256 to avoid storing plaintext."""
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+
+def authenticate_user(username,password):
+    """Validate user or registers them if they don't exist."""
+    pwd_has = hash_password(password)
+    users ={}
+
+    #Read existing users
+    try: 
+        with open(CREDENTIALS_FILE,mode ='r',encoding='utf-8')as f:
+            reader = csv.reader(f)
+            next(reader,None)# skip header
+            for row in reader:
+                if len(row)==2:
+                    user[row[0]]=row[1]
+    except Exception as e:
+        print(f"[-] Error reading credentials:{e}")
+
+    if username in users:
+        if users[username]==pwd_hash:
+            return "AUTH_SUCCESS"
+        else:
+            return "AUTH_FAIL"
+    else:
+        #Auto-register new user
+        try:
+            with open(CREDENTIALS_FILE,mode ='a',newline='',encoding='utf-8')as f:
+                writer = csv.writer(f)
+                writer.writerow([username,pwd_hash])
+            return "REGISTERED"
+
+        except Exception as e:
+            print(f"[-] Error saving new user:{e}")
+            return "AUTH_ERROR"
+
 
 def init_csv_stores():
     if not os.path.exists(HISTORY_FILE):
