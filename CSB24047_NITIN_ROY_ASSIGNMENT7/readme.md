@@ -27,7 +27,581 @@ The following security features were implemented as required:
 
 ```
 .
-├── server.py              # Secure TCP Server
+├── server.py    a# Assignment 8 – Scalable and Reliable GUI-Based Multi-Client Chat Application
+
+**Course:** ISEA Phase 3 – Tezpur University  
+**Assignment:** Assignment 8  
+**Student:** <Your Name>  
+**Roll No.:** <Your Roll Number>
+
+---
+
+# Overview
+
+This assignment is an enhancement of **Assignment 7**. Instead of developing a new application, the existing GUI-based TCP multi-client chat application has been improved by focusing on:
+
+- Scalability
+- Reliability
+- Connection Management
+- Configuration Management
+- Performance Evaluation
+- Software Quality
+
+The application follows a **Client-Server Architecture** using **Python Socket Programming** and was tested in the **Mininet network emulator**.
+
+---
+
+# Assignment Objectives
+
+The primary objective of this assignment is to improve the existing chat application by:
+
+- Supporting more concurrent users
+- Improving fault tolerance
+- Handling unexpected disconnections
+- Managing resources efficiently
+- Making configuration dynamic
+- Evaluating performance before and after optimization
+
+---
+
+# Learning Outcomes
+
+After completing this assignment, the following concepts were implemented and understood:
+
+- Scalable client-server architecture
+- Reliable socket communication
+- Dynamic configuration management
+- Thread optimization
+- Resource cleanup
+- Automatic reconnection
+- Performance benchmarking
+- Wireshark TCP analysis
+
+---
+
+# Technology Stack
+
+- Python 3.x
+- Socket Programming
+- Threading
+- ThreadPoolExecutor
+- Tkinter GUI
+- JSON
+- CSV
+- SHA-256 Hashing
+- Mininet
+- Wireshark
+
+---
+
+# Project Structure
+
+```
+Assignment8/
+│
+├── server.py
+├── client_gui.py
+├── config.json
+├── users.csv
+├── chat_history.csv
+├── security_log.txt
+├── performance_results.csv
+│
+├── graphs/
+│   ├── delay.png
+│   ├── throughput.png
+│   ├── cpu_usage.png
+│   └── memory_usage.png
+│
+├── screenshots/
+│
+├── report.pdf
+├── handwritten_reflection.pdf
+└── README.md
+```
+
+---
+
+# Network Setup
+
+The application was tested using Mininet.
+
+Create topology:
+
+```bash
+sudo mn --topo single,11
+```
+
+Server IP
+
+```
+10.0.0.1
+```
+
+Concurrent clients tested
+
+- 5 Clients
+- 8 Clients
+- 10 Clients
+
+---
+
+# Running the Application
+
+## Start Server
+
+```bash
+python3 server.py
+```
+
+---
+
+## Start Client
+
+Open multiple terminals.
+
+```bash
+python3 client_gui.py
+```
+
+Login using
+
+- Username
+- Password
+
+New users are automatically registered.
+
+---
+
+# Features
+
+## Authentication
+
+- Username & password authentication
+- Automatic registration
+- Password hashing using SHA-256
+- Duplicate login prevention
+
+---
+
+## Messaging
+
+Supports
+
+- Broadcast messaging
+- Private messaging
+- Online user list
+- Chat history recovery
+
+Commands
+
+```
+/list
+```
+
+Shows online users.
+
+```
+/msg <username> <message>
+```
+
+Private messaging.
+
+```
+/logout
+```
+
+Gracefully disconnects.
+
+---
+
+# Assignment Tasks
+
+---
+
+# Task 1 – Connection Management
+
+Implemented Features
+
+- Automatic disconnected client detection
+- TCP KeepAlive enabled
+- Inactive client removal
+- Resource cleanup
+- Socket cleanup
+- Meaningful error messages
+- Dashboard updates
+- Automatic removal from active client list
+
+Implementation
+
+Server
+
+- TCP KeepAlive
+- Inactivity monitoring thread
+- Resource cleanup inside `finally`
+- Active client removal
+- Rate-limit cleanup
+
+Client
+
+- Graceful logout
+- Graceful window close
+- Automatic GUI reset after disconnect
+
+---
+
+# Task 2 – Reliability Enhancement
+
+Implemented Features
+
+### Automatic Reconnection
+
+The client automatically reconnects after an unexpected disconnection.
+
+Features
+
+- Maximum 3 retries
+- Retry delay
+- Automatic authentication
+- Receiver thread restart
+
+---
+
+### Graceful Shutdown
+
+Server
+
+- Notifies all clients
+- Closes sockets
+- Clears active sessions
+
+Client
+
+- Sends `/logout`
+- Closes socket safely
+
+---
+
+### Timeout Handling
+
+Implemented
+
+- Socket timeout
+- Inactivity timeout
+- Connection timeout
+
+---
+
+### Better Exception Handling
+
+Improved handling for
+
+- ConnectionResetError
+- ConnectionAbortedError
+- socket.timeout
+- socket.error
+- Invalid authentication
+- Duplicate login
+- Unexpected exceptions
+
+---
+
+# Task 3 – Scalability Enhancement
+
+The original Assignment 7 used:
+
+- One thread per client
+
+Assignment 8 improves scalability using:
+
+## ThreadPoolExecutor
+
+Instead of creating unlimited threads, the server now uses
+
+```python
+ThreadPoolExecutor(max_workers=MAX_WORKERS)
+```
+
+Benefits
+
+- Controlled thread creation
+- Lower memory usage
+- Better CPU utilization
+- Stable under heavy load
+
+---
+
+## Snapshot Broadcast
+
+Broadcast now creates a snapshot of active clients before sending messages.
+
+Benefits
+
+- Reduced lock contention
+- Better scalability
+- Faster broadcasts
+
+---
+
+## Duplicate Login Prevention
+
+Only one active session per username is allowed.
+
+---
+
+## Successfully Tested
+
+- 5 Clients
+- 8 Clients
+- 10 Clients
+
+without crashes.
+
+---
+
+# Task 4 – Configuration Management
+
+All configurable values were moved into
+
+```
+config.json
+```
+
+No hardcoded values remain.
+
+Configurable settings include
+
+Network
+
+- Host
+- Port
+- Worker threads
+- Queue backlog
+
+Security
+
+- Lockout limit
+- Lockout duration
+- Timeout
+- Rate limit
+- Maximum message length
+
+Storage
+
+- Chat history
+- User credentials
+- Security logs
+
+If `config.json` is missing, the server automatically creates one using default values.
+
+---
+
+# Task 5 – Performance Evaluation
+
+Performance was compared before and after optimization.
+
+Metrics
+
+- Delay
+- Throughput
+- CPU Usage
+- Memory Usage
+
+Results are stored in
+
+```
+performance_results.csv
+```
+
+Graphs are generated in
+
+```
+graphs/
+```
+
+Graphs include
+
+- Delay Graph
+- Throughput Graph
+- CPU Usage Graph
+- Memory Usage Graph
+
+---
+
+# Task 6 – Wireshark Verification
+
+TCP communication was captured using Wireshark.
+
+Verified
+
+- TCP Three-Way Handshake
+- Authentication packets
+- Chat messages
+- Private messages
+- Graceful disconnect
+- FIN packets
+
+---
+
+# Task 7 – GitHub Update
+
+The Assignment 7 repository was updated instead of creating a new repository.
+
+Naming convention
+
+```
+ISEA-Phase3-TezpurUniversity-<RepositoryName>
+```
+
+Git history documents all improvements made for Assignment 8.
+
+---
+
+# Task 8 – Handwritten Reflection
+
+The following questions were answered manually.
+
+1. Which optimization produced the greatest improvement?
+
+2. Why is scalability important?
+
+3. What reliability issues did you discover?
+
+4. Which optimization was the most difficult?
+
+5. What additional improvements are required to support 100 users?
+
+Scanned copy included as
+
+```
+handwritten_reflection.pdf
+```
+
+---
+
+# Additional Improvements Implemented
+
+Besides the required assignment tasks, the following enhancements were implemented.
+
+## Security
+
+- SHA-256 password hashing
+- Username validation
+- Input sanitization
+- HTML escaping
+- Protocol delimiter protection
+- Security logging
+
+---
+
+## Rate Limiting
+
+Implemented anti-spam protection.
+
+Users exceeding the configured message rate are temporarily throttled.
+
+---
+
+## Login Protection
+
+Implemented
+
+- Failed login tracking
+- Account lockout
+- Lockout timer
+
+---
+
+## Message Validation
+
+Implemented
+
+- Maximum message length
+- Invalid command rejection
+- Empty password rejection
+
+---
+
+## Logging
+
+Maintains
+
+- Chat history
+- Security log
+- User credentials
+
+---
+
+## Dashboard
+
+Server dashboard displays
+
+- Active clients
+- Messages processed
+- Broadcast count
+- Private message count
+
+---
+
+# Comparison Between Assignment 7 and Assignment 8
+
+| Feature | Assignment 7 | Assignment 8 |
+|----------|--------------|--------------|
+| Thread per Client | ✔ | Improved using ThreadPoolExecutor |
+| Configuration File | ❌ | ✔ config.json |
+| Auto Reconnect | ❌ | ✔ |
+| Graceful Shutdown | Partial | ✔ |
+| Connection Cleanup | Basic | Improved |
+| Resource Management | Basic | Improved |
+| Performance Evaluation | ❌ | ✔ |
+| Graph Generation | ❌ | ✔ |
+| Rate Limiting | ❌ | ✔ |
+| Input Sanitization | ❌ | ✔ |
+| HTML Escaping | ❌ | ✔ |
+| TCP KeepAlive | ❌ | ✔ |
+| Snapshot Broadcast | ❌ | ✔ |
+| Duplicate Login Protection | ✔ | Improved |
+| Dynamic Configuration | ❌ | ✔ |
+
+---
+
+# Expected Output
+
+The server should
+
+- Accept multiple concurrent clients
+- Support private messaging
+- Broadcast messages
+- Handle disconnects gracefully
+- Recover from failures
+- Reject invalid input
+- Maintain security logs
+- Handle 10 concurrent users without crashing
+
+---
+
+# Future Improvements
+
+To support more than 100 concurrent users, the following improvements can be implemented:
+
+- Async I/O using asyncio
+- Event-driven networking
+- Non-blocking sockets
+- Database integration (SQLite/MySQL/PostgreSQL)
+- TLS/SSL encryption
+- Load balancing
+- Redis for session management
+- Distributed server architecture
+- Docker deployment
+- Kubernetes orchestration
+
+---
+
+# Conclusion
+
+This assignment successfully enhanced the Assignment 7 chat application into a more scalable, reliable, and maintainable system. The implementation includes improved connection management, automatic reconnection, graceful shutdown, dynamic configuration using `config.json`, optimized thread management through `ThreadPoolExecutor`, enhanced security mechanisms, and comprehensive performance evaluation. The application was successfully tested with up to **10 concurrent clients** in Mininet, demonstrating improved stability and software quality while maintaining the original communication protocol.
+
+---          # Secure TCP Server
 ├── client_gui.py          # GUI Client Application
 ├── users.csv              # Stores usernames and hashed passwords
 ├── chat_history.csv       # Chat history
