@@ -396,5 +396,59 @@ def main():
     finally:
         engine.close()
 
+
+def graceful_server_shutdown(engine):
+    """Task2 of assignment08:Gracefully notifies all clients and releases socket on server shutdown. """
+    print("\n[*]Initiating graceful server shutdown:)")
+    with client_lock:
+        for user,metadata in list(clients.items()):
+            try:
+                metadata["socket"].sendall("SYSTEM :LOGOUT:Server is shutting down. ".encode('utf-8'))
+                metadata["socket"].close()
+            except Exception:
+                pass
+        clients.clear()
+    try:
+        engine.close()
+    except Exception:
+        pass
+    print("[*] Server shutdown complete.")
+
+def main():
+    init_csv_stores()
+    
+    # Run the secure inactivity thread scanner
+    monitor = threading.Thread(target=inactivity_monitor_thread, daemon=True)
+    monitor.start()
+    
+    engine = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    engine.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+    try:
+        engine.bind((HOST, PORT))
+        engine.listen(15)
+        print(f"Server is listening on secure TCP Port {PORT}")
+        
+        while True:
+            try:
+                sock, addr = engine.accept()
+                # Task 2: Set connection socket timeout to prevent hung read operations
+                sock.settimeout(600.0) 
+                worker = threading.Thread(target=handle_client_worker, args=(sock, addr), daemon=True)
+                worker.start()
+            except socket.timeout:
+                continue
+            except Exception as e:
+                break
+            
+    except KeyboardInterrupt:
+        # Task 2: Capture interrupt and perform graceful shutdown
+        graceful_server_shutdown(engine)
+    finally:
+        try:
+            engine.close()
+        except Exception:
+            pass
+
 if __name__ == "__main__":
     main()
