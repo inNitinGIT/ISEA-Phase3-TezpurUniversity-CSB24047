@@ -171,6 +171,8 @@ def handle_client_worker(client_socket, client_address):
     ip, port = client_address
     username = None
     
+    #Task 1: enable Tcp keepalive to detect ded connections automatically
+    client_socket.setsockopt(socket.SOL_SOCKET,socket.SO_KEEPALIVE,1)
     try:
         # Handshake Data Check
         auth_payload = client_socket.recv(1024).decode('utf-8').strip()
@@ -347,22 +349,27 @@ def handle_client_worker(client_socket, client_address):
                     server_stats["broadcast_messages"] += 1
                     
             update_and_display_dashboard()
-            
+    
+    except ConnectionResetError:
+        print(f"[-] Client {username if username else ip}forcefully disconneted.")
     except Exception as e:
         print(f"[-] Processing exception on user '{username if username else ip}': {e}")
     finally:
-        # Graceful Disconnection cleanup
+        # task 1 : Graceful Disconnection cleanup
         if username:
             with client_lock:
                 if username in clients:
-                    clients[username]["status"] = "OFFLINE"
+                    del clients[username]#fully remove client from state store to release memory
             
             print(f"DISCONNECTED : {username}")
             broadcast_system_message(f"LEAVE:{username}")
             log_chat_event(username, "Server", "system_leave", f"{username} disconnected.")
             update_and_display_dashboard()
-            
+        
+        try:
         client_socket.close()
+        except Exception:
+            pass
 
 def main():
     init_csv_stores()
