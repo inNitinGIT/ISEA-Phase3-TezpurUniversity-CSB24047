@@ -6,18 +6,76 @@ import os
 import hashlib
 import re
 import time
-form concurrent.futures import ThreadPoolExecutor #task3 : reuires that 10 thread workd simulatneously withoud any crashes
+import json
+from concurrent.futures import ThreadPoolExecutor
 
-# Network Setup Configuration
-HOST = '0.0.0.0'
-PORT = 5000 
+CONFIG_FILE = "config.json"
 
+# Default fallback values in case config.json is missing or invalid
+DEFAULT_CONFIG = {
+    "network": {
+        "host": "0.0.0.0",
+        "port": 5000,
+        "max_queue_backlog": 25,
+        "max_workers": 20
+    },
+    "security": {
+        "lockout_limit": 5,
+        "lockout_duration_minutes": 5,
+        "inactivity_timeout_minutes": 5,
+        "socket_timeout_seconds": 600.0,
+        "max_msg_length": 1000
+    },
+    "storage": {
+        "history_file": "chat_history.csv",
+        "credentials_file": "users.csv",
+        "security_log": "security_log.txt"
+    }
+}
+
+def load_config():
+    """Task 4: Dynamic JSON configuration loader with automatic generation & fallback."""
+    if not os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(DEFAULT_CONFIG, f, indent=4)
+            print("[+] Created default config.json configuration file.")
+        except Exception as e:
+            print(f"[-] Could not create config.json: {e}")
+        return DEFAULT_CONFIG
+    
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[-] Failed to load config.json ({e}). Falling back to defaults.")
+        return DEFAULT_CONFIG
+
+# Load Config
+config = load_config()
+
+# Task 4 Configuration Variables
+HOST = config["network"]["host"]
+PORT = config["network"]["port"]
+MAX_QUEUE_BACKLOG = config["network"]["max_queue_backlog"]
+MAX_WORKERS = config["network"]["max_workers"]
+
+LOCKOUT_LIMIT = config["security"]["lockout_limit"]
+LOCKOUT_DURATION = datetime.timedelta(minutes=config["security"]["lockout_duration_minutes"])
+INACTIVITY_TIMEOUT = datetime.timedelta(minutes=config["security"]["inactivity_timeout_minutes"])
+SOCKET_TIMEOUT = config["security"]["socket_timeout_seconds"]
+MAX_MSG_LENGTH = config["security"]["max_msg_length"]
+
+HISTORY_FILE = config["storage"]["history_file"]
+CREDENTIALS_FILE = config["storage"]["credentials_file"]
+SECURITY_LOG = config["storage"]["security_log"]
+
+# State Locks
 client_lock = threading.Lock()
 stats_lock = threading.Lock()
 
 # Task 1: Complete Client Profiles State Store
-# Structure: {username: {"socket": sock, "ip": ip, "port": port, "login_time": time, "status": "ONLINE", "last_activity": datetime}}
-clients = {}  
+clients = {} 
 
 # Task 1: Required Server Metrics Tracker
 server_stats = {
@@ -25,15 +83,6 @@ server_stats = {
     "broadcast_messages": 0,
     "private_messages": 0
 }
-
-HISTORY_FILE = "chat_history.csv" 
-CREDENTIALS_FILE = "users.csv"
-SECURITY_LOG = "security_log.txt"
-
-# Task 5 & 6 Configuration Rules
-LOCKOUT_LIMIT = 5
-LOCKOUT_DURATION = datetime.timedelta(minutes=5)
-INACTIVITY_TIMEOUT = datetime.timedelta(minutes=5)
 
 # Lockout state databases (in-memory)
 failed_attempts = {}  # {username: count}
@@ -62,7 +111,7 @@ def log_chat_event(sender, receiver, msg_type, message):
         print(f"[-] CSV Logging Error: {e}")
 
 def log_security_event(event_type, username, ip, port, details):
-    """Task 6: Write to security_log.txt securely without storing plaintext passwords."""
+    """Write to security log file securely without storing plaintext passwords."""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_line = f"[{timestamp}] {event_type.upper()} | User: {username} | Host: {ip}:{port} | Info: {details}\n"
     try:
@@ -72,11 +121,11 @@ def log_security_event(event_type, username, ip, port, details):
         print(f"[-] Security Log Error: {e}")
 
 def hash_password(password):
-    """Task 2: Secure password storage using SHA-256 hashing."""
+    """Secure password storage using SHA-256 hashing."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def is_valid_username(username):
-    """Task 4: Alphanumeric constraint on usernames (3-15 characters)."""
+    """Alphanumeric constraint on usernames (3-15 characters)."""
     return bool(re.match(r"^[a-zA-Z0-9_]{3,15}$", username))
 
 def authenticate_user(username, password):
@@ -100,7 +149,6 @@ def authenticate_user(username, password):
         else:
             return "AUTH_FAIL"
     else:
-        # Register user on the fly if profile doesn't exist
         try:
             with open(CREDENTIALS_FILE, mode='a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
@@ -139,14 +187,13 @@ def update_and_display_dashboard():
         print("===============================================\n")
 
 def broadcast_system_message(text_content, exclude_user=None):
-    """Task 3: Scalable broadcast using Snapshot pattern.
-    Extracts sockets under lock, then performs socket I/O outside critical section
-    to prevent lock contention across concurrent threads.
-    """
+    """Scalable broadcast using Snapshot pattern."""
     with client_lock:
-        targets = [(user, metadata["socket"]) 
+        targets = [
+            (user, metadata["socket"]) 
             for user, metadata in clients.items() 
-            if metadata["status"] == "ONLINE" and user != exclude_user]
+            if metadata["status"] == "ONLINE" and user != exclude_user
+        ]
 
     encoded_payload = text_content.encode('utf-8')
     for user, sock in targets:
@@ -156,7 +203,7 @@ def broadcast_system_message(text_content, exclude_user=None):
             pass
 
 def inactivity_monitor_thread():
-    """Task 6: Periodically scans for inactive TCP clients and times them out."""
+    """Periodically scans for inactive TCP clients and times them out."""
     while True:
         time.sleep(10)
         now = datetime.datetime.now()
@@ -180,11 +227,9 @@ def handle_client_worker(client_socket, client_address):
     ip, port = client_address
     username = None
     
-    # Task 1: Enable TCP keepalive to detect dead connections automatically
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
     
     try:
-        # Handshake Data Check
         auth_payload = client_socket.recv(1024).decode('utf-8').strip()
         if not auth_payload or "||" not in auth_payload:
             client_socket.sendall("AUTH_FAIL:Invalid authentication protocol.".encode('utf-8'))
@@ -207,7 +252,6 @@ def handle_client_worker(client_socket, client_address):
 
         now = datetime.datetime.now()
         
-        # Check Account Lockouts
         if username_payload in lockouts:
             if now < lockouts[username_payload]:
                 remaining_sec = int((lockouts[username_payload] - now).total_seconds())
@@ -219,19 +263,18 @@ def handle_client_worker(client_socket, client_address):
                 del lockouts[username_payload]
                 failed_attempts[username_payload] = 0
 
-        # Run Verification
         auth_status = authenticate_user(username_payload, password_payload)
         
         if auth_status == "AUTH_FAIL":
             failed_attempts[username_payload] = failed_attempts.get(username_payload, 0) + 1
             attempts_left = LOCKOUT_LIMIT - failed_attempts[username_payload]
             
-            log_security_event("failed_login", username_payload, ip, port, f"Incorrect password (Attempt {failed_attempts[username_payload]}/5).")
+            log_security_event("failed_login", username_payload, ip, port, f"Incorrect password (Attempt {failed_attempts[username_payload]}/{LOCKOUT_LIMIT}).")
             
             if failed_attempts[username_payload] >= LOCKOUT_LIMIT:
                 lockouts[username_payload] = now + LOCKOUT_DURATION
-                log_security_event("account_locked", username_payload, ip, port, "Lockout state activated for 5 minutes.")
-                client_socket.sendall("AUTH_FAIL:Too many incorrect attempts. Locked out for 5 minutes.".encode('utf-8'))
+                log_security_event("account_locked", username_payload, ip, port, f"Lockout state activated for {config['security']['lockout_duration_minutes']} minutes.")
+                client_socket.sendall(f"AUTH_FAIL:Too many incorrect attempts. Locked out for {config['security']['lockout_duration_minutes']} minutes.".encode('utf-8'))
             else:
                 client_socket.sendall(f"AUTH_FAIL:Incorrect credentials. {attempts_left} attempts remaining.".encode('utf-8'))
                 
@@ -243,7 +286,6 @@ def handle_client_worker(client_socket, client_address):
             client_socket.close()
             return
             
-        # Duplicate Login Prevention
         with client_lock:
             if username_payload in clients and clients[username_payload]["status"] == "ONLINE":
                 client_socket.sendall("AUTH_FAIL:User already logged in from another location.".encode('utf-8'))
@@ -251,7 +293,6 @@ def handle_client_worker(client_socket, client_address):
                 client_socket.close()
                 return
 
-        # Login Approved - Purge failures and map profile
         username = username_payload
         failed_attempts[username] = 0 
         login_time = datetime.datetime.now().strftime("%H:%M:%S")
@@ -283,7 +324,6 @@ def handle_client_worker(client_socket, client_address):
         
         update_and_display_dashboard()
         
-        # Keepalive communications loop
         while True:
             raw_data = client_socket.recv(4096)
             if not raw_data:
@@ -297,8 +337,8 @@ def handle_client_worker(client_socket, client_address):
                 if username in clients:
                     clients[username]["last_activity"] = datetime.datetime.now()
                     
-            if len(incoming_text) > 1000:
-                client_socket.sendall("SYSTEM:ERROR Message rejected. Must not exceed 1000 characters.".encode('utf-8'))
+            if len(incoming_text) > MAX_MSG_LENGTH:
+                client_socket.sendall(f"SYSTEM:ERROR Message rejected. Must not exceed {MAX_MSG_LENGTH} characters.".encode('utf-8'))
                 log_security_event("oversized_message_rejected", username, ip, port, f"Rejected oversized message ({len(incoming_text)} characters).")
                 continue
                 
@@ -331,7 +371,6 @@ def handle_client_worker(client_socket, client_address):
                     continue
                 target, secret_msg = parts[1], parts[2]
                 
-                # Task 3: Lock-free target lookup
                 target_socket = None
                 with client_lock:
                     if target in clients and clients[target]["status"] == "ONLINE":
@@ -361,7 +400,6 @@ def handle_client_worker(client_socket, client_address):
     except Exception as e:
         print(f"[-] Processing exception on user '{username if username else ip}': {e}")
     finally:
-        # Task 1: Complete resource cleanup
         if username:
             with client_lock:
                 if username in clients:
@@ -377,15 +415,13 @@ def handle_client_worker(client_socket, client_address):
         except Exception:
             pass
 
-
-
 def graceful_server_shutdown(engine):
-    """Task2 of assignment08:Gracefully notifies all clients and releases socket on server shutdown. """
-    print("\n[*]Initiating graceful server shutdown:)")
+    """Gracefully notifies all clients and releases sockets on server shutdown."""
+    print("\n[*] Initiating graceful server shutdown...")
     with client_lock:
-        for user,metadata in list(clients.items()):
+        for user, metadata in list(clients.items()):
             try:
-                metadata["socket"].sendall("SYSTEM :LOGOUT:Server is shutting down. ".encode('utf-8'))
+                metadata["socket"].sendall("SYSTEM:LOGOUT:Server is shutting down.".encode('utf-8'))
                 metadata["socket"].close()
             except Exception:
                 pass
@@ -399,25 +435,25 @@ def graceful_server_shutdown(engine):
 def main():
     init_csv_stores()
     
-    # Run the secure inactivity thread scanner
     monitor = threading.Thread(target=inactivity_monitor_thread, daemon=True)
     monitor.start()
     
     engine = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     engine.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
+    executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+    
     try:
         engine.bind((HOST, PORT))
-        #Task 3 : increased Tcp queue backlog to 25
-        engine.listen(25)
-        print(f"Server is listening on secure TCP Port {PORT}")
+        engine.listen(MAX_QUEUE_BACKLOG)
+        print(f"[*] Server initialized with config.json limits.")
+        print(f"[*] Listening on {HOST}:{PORT} | Workers: {MAX_WORKERS} | Lockout: {LOCKOUT_LIMIT} attempts")
         
         while True:
             try:
                 sock, addr = engine.accept()
-                # Task 2: Set connection socket timeout to prevent hung read operations
-                sock.settimeout(600.0) 
-                excecutor.submit(handle_client_worker,sock,addr)
+                sock.settimeout(SOCKET_TIMEOUT) 
+                executor.submit(handle_client_worker, sock, addr)
             except socket.timeout:
                 continue
             except Exception as e:
@@ -426,14 +462,11 @@ def main():
     except KeyboardInterrupt:
         graceful_server_shutdown(engine)
     finally:
-        excecutor.shutdown(wait=False)
+        executor.shutdown(wait=False)
         try:
             engine.close()
         except Exception:
             pass
-
-
-
 
 if __name__ == "__main__":
     main()
