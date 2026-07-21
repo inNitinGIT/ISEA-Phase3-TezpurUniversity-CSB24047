@@ -1,0 +1,10 @@
+timestamp,sender,receiver,message_type,message
+2026-07-21 15:58:50,user2,ALL,broadcast,hello
+2026-07-21 15:58:55,user1,ALL,broadcast,hi buddy
+2026-07-21 15:59:12,user2,ALL,broadcast,whatsup
+2026-07-21 15:59:23,user1,ALL,broadcast,making new things on assingment8
+2026-07-21 15:59:26,user2,ALL,broadcast,me too
+2026-07-21 15:59:29,user2,ALL,broadcast,exit
+2026-07-21 15:59:34,user1,ALL,broadcast,exit
+2026-07-21 15:59:38,user2,Server,system_leave,user2 disconnected.
+2026-07-21 15:59:44,user1,Server,system_leave,user1 disconnected.

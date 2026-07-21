@@ -1,0 +1,4 @@
+[2026-07-21 15:58:39] SUCCESSFUL_LOGIN | User: user1 | Host: 10.0.0.3:56230 | Info: Session established successfully (REGISTERED).
+[2026-07-21 15:58:46] SUCCESSFUL_LOGIN | User: user2 | Host: 10.0.0.2:33662 | Info: Session established successfully (REGISTERED).
+[2026-07-21 15:59:38] USER_LOGOUT | User: user2 | Host: 10.0.0.2:33662 | Info: User requested regular session termination.
+[2026-07-21 15:59:44] USER_LOGOUT | User: user1 | Host: 10.0.0.3:56230 | Info: User requested regular session termination.
