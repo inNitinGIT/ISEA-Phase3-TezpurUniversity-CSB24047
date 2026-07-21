@@ -259,7 +259,7 @@ class ChatClientGUI:
                 self.root.after(0,lambda:self.graceful_revert_to_login("Error: Connection aborted dute to netwokr failure."))        
                 break
             except Exception as e:
-                self.root.after(0, lambda: e=e.graceful_revert_to_login(f"Network error occured: {str(e)}"))
+                self.root.after(0, lambda e=e: self.graceful_revert_to_login(f"Network error occured: {str(e)}"))
                 break
 
 
