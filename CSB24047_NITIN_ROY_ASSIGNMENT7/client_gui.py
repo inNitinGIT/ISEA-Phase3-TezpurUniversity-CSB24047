@@ -15,10 +15,24 @@ class ChatClientGUI:
         self.port = 5000
         self.sock = None
         self.username = ""
+        self.password = ""
         self.online_users = []
+        self.is_reconnecting=False
         
+        #Task2 assingment 08 : -> Intercept window exit event for graceful shutdown
+        self.root.protocol("WM_DELETE_WINDOW",self.on_closing)
         # Render Login Interface initially
         self.create_login_window()
+
+    def on_closing(self):
+        """Task 2: Graceful GUI shutdown on window close button click."""
+        if self.sock:
+            try:
+                self.sock.sendall("/logout".encode('utf-8'))
+                self.sock.close()
+            except Exception:
+                pass
+            self.root.destory()
 
     def create_login_window(self):
         """Task 1: Login panel containing username and hidden-input password."""
@@ -59,9 +73,12 @@ class ChatClientGUI:
         try:
             # Setup Socket Parameters
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+           #task2: assignment08 : 5-second connection timeout to avoid GUI FREEZE
+            self.sock.settimeout(5.0)
             self.sock.connect((self.server_ip, self.port))
             
             self.username = user
+            self.password=password #saved for reconnect handling
             
             # Send securely serialized payload username||password
             auth_payload = f"{user}||{password}"
@@ -85,11 +102,17 @@ class ChatClientGUI:
             
             # Write initial connection info/history catches to log output
             self.append_message(server_response)
-            
+            #task2 :rest socket back to blocking mode with hight timeout for normal reads
+            self.sock.settimeout(None)
             # Start communications receiving threads
             receiver_thread = threading.Thread(target=self.receive_messages, daemon=True)
             receiver_thread.start()
-            
+
+        except socket.timeout:
+            messagebox.showerror("Timeout Error","Connection time out. Server might be down.")
+            if self.sock:
+                self.sock.close()
+                self.sock = None
         except Exception as e:
             messagebox.showerror("Connection Error", f"Unable to establish TCP socket: {e}")
             if self.sock:
@@ -204,13 +227,55 @@ class ChatClientGUI:
         self.create_login_window()
         messagebox.showinfo("Session Status", info_reason)
 
+
+    def attempt_reconnect(self):
+        """Task 2: Automatic reconnection routine with exponential retry logic."""
+        if self.is_reconnecting:
+            return
+        self.is_reconnecting = True
+        
+        self.append_message("[System Warning] Lost connection. Attempting automatic reconnection...")
+        
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                import time
+                time.sleep(2)  # Wait 2 seconds between retry attempts
+                
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.settimeout(4.0)
+                self.sock.connect((self.server_ip, self.port))
+                
+                auth_payload = f"{self.username}||{self.password}"
+                self.sock.sendall(auth_payload.encode('utf-8'))
+                
+                resp = self.sock.recv(4096).decode('utf-8')
+                if not resp.startswith("AUTH_FAIL"):
+                    self.sock.settimeout(None)
+                    self.is_reconnecting = False
+                    self.append_message("[System Success] Reconnected to server successfully!")
+                    
+                    # Restart receiver thread
+                    threading.Thread(target=self.receive_messages, daemon=True).start()
+                    return
+            except Exception:
+                self.append_message(f"[System] Reconnect attempt {attempt}/{max_retries} failed...")
+
+        self.is_reconnecting = False
+        self.graceful_revert_to_login("Reconnection failed after multiple attempts.")
+
+
+
+
+
     def receive_messages(self):
-        """Primary active socket receiver thread loop."""
+        """Primary active socket receiver thread loop with auto -reconnection integration."""
         while True:
             try:
                 data = self.sock.recv(4096)
                 if not data:
-                    self.root.after(0, lambda: self.graceful_revert_to_login("Connection closed by server."))
+                    if not self.is_reconnecting:
+                        self.root.after(0,self.attempt_reconnect)
                     break
                 
                 decoded_data = data.decode('utf-8')
@@ -251,16 +316,14 @@ class ChatClientGUI:
                 else:
                     self.root.after(0, lambda msg=decoded_data: self.append_message(msg))
                     
-            except ConnectionResetError:
-                self.root.after(0,lambda:self.graceful_revert_to_login("Error : The server unexpectedly dropped the connection."))
+            except (ConnectionResetError,ConnectionAbortedError,socket.error):
+                if not self.is_reconnecting:
+                    self.root.after(0,self.attempt_reconnect)
                 break
+            except Exception:
+                self.root.after(0,lambda:self.graceful_revert_to_login("System Link lost unexpectedly."))
+         
 
-            except ConnectionAbortedError:
-                self.root.after(0,lambda:self.graceful_revert_to_login("Error: Connection aborted dute to netwokr failure."))        
-                break
-            except Exception as e:
-                self.root.after(0, lambda e=e: self.graceful_revert_to_login(f"Network error occured: {str(e)}"))
-                break
 
 
 if __name__ == "__main__":
