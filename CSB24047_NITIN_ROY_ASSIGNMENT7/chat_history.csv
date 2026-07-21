@@ -8,3 +8,5 @@ timestamp,sender,receiver,message_type,message
 2026-07-21 15:59:34,user1,ALL,broadcast,exit
 2026-07-21 15:59:38,user2,Server,system_leave,user2 disconnected.
 2026-07-21 15:59:44,user1,Server,system_leave,user1 disconnected.
+2026-07-21 16:49:46,user1,ALL,broadcast,hello
+2026-07-21 16:49:48,user1,Server,system_leave,user1 disconnected.
