@@ -367,7 +367,7 @@ def handle_client_worker(client_socket, client_address):
             update_and_display_dashboard()
         
         try:
-        client_socket.close()
+            client_socket.close()
         except Exception:
             pass
 
