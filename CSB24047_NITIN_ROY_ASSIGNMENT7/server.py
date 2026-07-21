@@ -6,6 +6,7 @@ import os
 import hashlib
 import re
 import time
+form concurrent.futures import ThreadPoolExecutor #task3 : reuires that 10 thread workd simulatneously withoud any crashes
 
 # Network Setup Configuration
 HOST = '0.0.0.0'
@@ -138,13 +139,21 @@ def update_and_display_dashboard():
         print("===============================================\n")
 
 def broadcast_system_message(text_content, exclude_user=None):
+    """Task 3: Scalable broadcast using Snapshot pattern.
+    Extracts sockets under lock, then performs socket I/O outside critical section
+    to prevent lock contention across concurrent threads.
+    """
     with client_lock:
-        for user, metadata in list(clients.items()):
-            if metadata["status"] == "ONLINE" and user != exclude_user:
-                try:
-                    metadata["socket"].sendall(text_content.encode('utf-8'))
-                except Exception:
-                    pass
+        targets = [(user, metadata["socket"]) 
+            for user, metadata in clients.items() 
+            if metadata["status"] == "ONLINE" and user != exclude_user]
+
+    encoded_payload = text_content.encode('utf-8')
+    for user, sock in targets:
+        try:
+            sock.sendall(encoded_payload)
+        except Exception:
+            pass
 
 def inactivity_monitor_thread():
     """Task 6: Periodically scans for inactive TCP clients and times them out."""
@@ -171,8 +180,9 @@ def handle_client_worker(client_socket, client_address):
     ip, port = client_address
     username = None
     
-    #Task 1: enable Tcp keepalive to detect ded connections automatically
-    client_socket.setsockopt(socket.SOL_SOCKET,socket.SO_KEEPALIVE,1)
+    # Task 1: Enable TCP keepalive to detect dead connections automatically
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    
     try:
         # Handshake Data Check
         auth_payload = client_socket.recv(1024).decode('utf-8').strip()
@@ -183,14 +193,12 @@ def handle_client_worker(client_socket, client_address):
         
         username_payload, password_payload = auth_payload.split("||", 1)
         
-        # Task 4 Input Validation: Username alphanumeric evaluation
         if not is_valid_username(username_payload):
             client_socket.sendall("AUTH_FAIL:Username must be 3-15 characters (alphanumeric only).".encode('utf-8'))
             log_security_event("validation_failed", username_payload, ip, port, "Rejected invalid username format.")
             client_socket.close()
             return
             
-        # Task 4 Input Validation: Blank Password evaluation
         if not password_payload.strip():
             client_socket.sendall("AUTH_FAIL:Empty password submitted.".encode('utf-8'))
             log_security_event("validation_failed", username_payload, ip, port, "Rejected empty password attempt.")
@@ -199,7 +207,7 @@ def handle_client_worker(client_socket, client_address):
 
         now = datetime.datetime.now()
         
-        # Task 5: Failed Login Protection - Check Account Lockouts
+        # Check Account Lockouts
         if username_payload in lockouts:
             if now < lockouts[username_payload]:
                 remaining_sec = int((lockouts[username_payload] - now).total_seconds())
@@ -208,7 +216,6 @@ def handle_client_worker(client_socket, client_address):
                 client_socket.close()
                 return
             else:
-                # Lockout expired, purge cache
                 del lockouts[username_payload]
                 failed_attempts[username_payload] = 0
 
@@ -236,7 +243,7 @@ def handle_client_worker(client_socket, client_address):
             client_socket.close()
             return
             
-        # Task 3: Duplicate Login Prevention
+        # Duplicate Login Prevention
         with client_lock:
             if username_payload in clients and clients[username_payload]["status"] == "ONLINE":
                 client_socket.sendall("AUTH_FAIL:User already logged in from another location.".encode('utf-8'))
@@ -267,18 +274,16 @@ def handle_client_worker(client_socket, client_address):
             welcome_banner += "--- Your Last 5 Sent Messages (State Recovered) ---\n" + "\n".join(historical_payload) + "\n-------------------------------------------------\n"
         client_socket.sendall(welcome_banner.encode('utf-8'))
         
-        # Broadcast Join Notification
         print(f"CONNECTED : {username}")
         broadcast_system_message(f"JOIN:{username}", exclude_user=username)
         
-        # Sync online users listbox right after joining
         with client_lock:
             online_users = [u for u, m in clients.items() if m["status"] == "ONLINE"]
         client_socket.sendall(f"USERLIST:{','.join(online_users)}".encode('utf-8'))
         
         update_and_display_dashboard()
         
-        # Keepalive communications thread
+        # Keepalive communications loop
         while True:
             raw_data = client_socket.recv(4096)
             if not raw_data:
@@ -288,18 +293,15 @@ def handle_client_worker(client_socket, client_address):
             if not incoming_text:
                 continue
                 
-            # Update user session state for active monitoring
             with client_lock:
                 if username in clients:
                     clients[username]["last_activity"] = datetime.datetime.now()
                     
-            # Task 4 Input Validation: Oversized Message Block
             if len(incoming_text) > 1000:
                 client_socket.sendall("SYSTEM:ERROR Message rejected. Must not exceed 1000 characters.".encode('utf-8'))
                 log_security_event("oversized_message_rejected", username, ip, port, f"Rejected oversized message ({len(incoming_text)} characters).")
                 continue
                 
-            # Task 4 Input Validation: Command Validation
             if incoming_text.startswith('/'):
                 parts = incoming_text.split()
                 command = parts[0]
@@ -317,7 +319,6 @@ def handle_client_worker(client_socket, client_address):
                 response = f"[Online System Users]: " + ", ".join(active_list)
                 client_socket.sendall(response.encode('utf-8'))
                 
-            # Task 6: Session Management - Client requested logout
             elif incoming_text == '/logout':
                 client_socket.sendall("SYSTEM:LOGOUT:Logged out successfully.".encode('utf-8'))
                 log_security_event("user_logout", username, ip, port, "User requested regular session termination.")
@@ -330,15 +331,20 @@ def handle_client_worker(client_socket, client_address):
                     continue
                 target, secret_msg = parts[1], parts[2]
                 
+                # Task 3: Lock-free target lookup
+                target_socket = None
                 with client_lock:
-                    is_online = target in clients and clients[target]["status"] == "ONLINE"
-                    
-                if is_online:
-                    with client_lock:
-                        clients[target]["socket"].sendall(f"[Private from {username}]: {secret_msg}".encode('utf-8'))
-                    log_chat_event(username, target, "private", secret_msg)
-                    with stats_lock:
-                        server_stats["private_messages"] += 1
+                    if target in clients and clients[target]["status"] == "ONLINE":
+                        target_socket = clients[target]["socket"]
+
+                if target_socket:
+                    try:
+                        target_socket.sendall(f"[Private from {username}]: {secret_msg}".encode('utf-8'))
+                        log_chat_event(username, target, "private", secret_msg)
+                        with stats_lock:
+                            server_stats["private_messages"] += 1
+                    except Exception:
+                        client_socket.sendall(f"[System Error] Message delivery to '{target}' failed.".encode('utf-8'))
                 else:
                     client_socket.sendall(f"[System Error] User '{target}' does not exist or is offline.".encode('utf-8'))
             
@@ -349,52 +355,28 @@ def handle_client_worker(client_socket, client_address):
                     server_stats["broadcast_messages"] += 1
                     
             update_and_display_dashboard()
-    
+            
     except ConnectionResetError:
-        print(f"[-] Client {username if username else ip}forcefully disconneted.")
+        print(f"[-] Client {username if username else ip} forcefully disconnected.")
     except Exception as e:
         print(f"[-] Processing exception on user '{username if username else ip}': {e}")
     finally:
-        # task 1 : Graceful Disconnection cleanup
+        # Task 1: Complete resource cleanup
         if username:
             with client_lock:
                 if username in clients:
-                    del clients[username]#fully remove client from state store to release memory
+                    del clients[username]
             
             print(f"DISCONNECTED : {username}")
             broadcast_system_message(f"LEAVE:{username}")
             log_chat_event(username, "Server", "system_leave", f"{username} disconnected.")
             update_and_display_dashboard()
-        
+            
         try:
             client_socket.close()
         except Exception:
             pass
 
-def main():
-    init_csv_stores()
-    
-    # Run the secure inactivity thread scanner
-    monitor = threading.Thread(target=inactivity_monitor_thread, daemon=True)
-    monitor.start()
-    
-    engine = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    engine.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    
-    try:
-        engine.bind((HOST, PORT))
-        engine.listen(15)
-        print(f"Server is listening on secure TCP Port {PORT}")
-        
-        while True:
-            sock, addr = engine.accept()
-            worker = threading.Thread(target=handle_client_worker, args=(sock, addr), daemon=True)
-            worker.start()
-            
-    except KeyboardInterrupt:
-        print("\n[*] Server terminating safely.")
-    finally:
-        engine.close()
 
 
 def graceful_server_shutdown(engine):
@@ -426,7 +408,8 @@ def main():
     
     try:
         engine.bind((HOST, PORT))
-        engine.listen(15)
+        #Task 3 : increased Tcp queue backlog to 25
+        engine.listen(25)
         print(f"Server is listening on secure TCP Port {PORT}")
         
         while True:
@@ -434,21 +417,23 @@ def main():
                 sock, addr = engine.accept()
                 # Task 2: Set connection socket timeout to prevent hung read operations
                 sock.settimeout(600.0) 
-                worker = threading.Thread(target=handle_client_worker, args=(sock, addr), daemon=True)
-                worker.start()
+                excecutor.submit(handle_client_worker,sock,addr)
             except socket.timeout:
                 continue
             except Exception as e:
                 break
             
     except KeyboardInterrupt:
-        # Task 2: Capture interrupt and perform graceful shutdown
         graceful_server_shutdown(engine)
     finally:
+        excecutor.shutdown(wait=False)
         try:
             engine.close()
         except Exception:
             pass
+
+
+
 
 if __name__ == "__main__":
     main()
