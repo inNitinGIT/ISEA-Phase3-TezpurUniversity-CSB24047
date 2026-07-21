@@ -12,7 +12,7 @@ SERVER_PORT = 5000
 RESULTS_FILE = "performance_results.csv"
 
 # Concurrency levels to evaluate
-CLIENT_SCENARIOS = [1, 5, 10, 20, 50]
+CLIENT_SCENARIOS = [5,8,10]
 MSGS_PER_CLIENT = 20
 
 def find_server_process():
