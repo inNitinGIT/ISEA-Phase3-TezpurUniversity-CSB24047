@@ -1,0 +1,11 @@
+stage,concurrent_clients,total_messages,avg_latency_ms,p95_latency_ms,throughput_msg_per_sec,cpu_usage_pct,memory_usage_mb
+Baseline,1,20,0.0,0.0,0.33,0.0,2.08
+Baseline,5,100,0.17,0.33,82.61,0.0,2.08
+Baseline,10,200,0.2,0.72,165.2,0.0,2.08
+Baseline,20,400,0.13,0.24,328.88,0.0,2.08
+Baseline,50,1000,0.22,0.75,444.9,0.0,2.08
+Optimized,1,20,0.0,0.0,0.33,0.0,2.08
+Optimized,5,100,0.42,1.05,82.69,0.0,2.08
+Optimized,10,200,0.15,0.37,165.1,0.0,2.08
+Optimized,20,400,0.14,0.34,328.7,0.0,2.08
+Optimized,50,1000,0.11,0.2,290.19,0.0,2.08
