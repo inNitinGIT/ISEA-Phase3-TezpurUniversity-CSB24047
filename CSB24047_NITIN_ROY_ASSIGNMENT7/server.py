@@ -7,11 +7,13 @@ import hashlib
 import re
 import time
 import json
-from concurrent.futures import ThreadPoolExecutor
+import html  # Task 5: Added for input sanitization & XSS escaping
+from concurrent.futures import ThreadPoolExecutor  # Task 3: Scalable Thread Pool
 
+# Configuration Setup File Path
 CONFIG_FILE = "config.json"
 
-# Default fallback values in case config.json is missing or invalid
+# Task 4: Default fallback configuration if config.json is missing or corrupted
 DEFAULT_CONFIG = {
     "network": {
         "host": "0.0.0.0",
@@ -24,7 +26,9 @@ DEFAULT_CONFIG = {
         "lockout_duration_minutes": 5,
         "inactivity_timeout_minutes": 5,
         "socket_timeout_seconds": 600.0,
-        "max_msg_length": 1000
+        "max_msg_length": 1000,
+        "rate_limit_max_msgs": 5,
+        "rate_limit_window_seconds": 3
     },
     "storage": {
         "history_file": "chat_history.csv",
@@ -66,13 +70,18 @@ INACTIVITY_TIMEOUT = datetime.timedelta(minutes=config["security"]["inactivity_t
 SOCKET_TIMEOUT = config["security"]["socket_timeout_seconds"]
 MAX_MSG_LENGTH = config["security"]["max_msg_length"]
 
+# Task 5 Security Configuration
+RATE_LIMIT_MAX_MSGS = config["security"].get("rate_limit_max_msgs", 5)
+RATE_LIMIT_WINDOW = config["security"].get("rate_limit_window_seconds", 3)
+
 HISTORY_FILE = config["storage"]["history_file"]
 CREDENTIALS_FILE = config["storage"]["credentials_file"]
 SECURITY_LOG = config["storage"]["security_log"]
 
-# State Locks
+# Thread Synchronization Locks
 client_lock = threading.Lock()
 stats_lock = threading.Lock()
+rate_limit_lock = threading.Lock()  # Task 5 Lock
 
 # Task 1: Complete Client Profiles State Store
 clients = {} 
@@ -87,6 +96,9 @@ server_stats = {
 # Lockout state databases (in-memory)
 failed_attempts = {}  # {username: count}
 lockouts = {}         # {username: lockout_expiry_datetime}
+
+# Task 5: In-memory rate limiting tracker {username: [timestamp1, timestamp2, ...]}
+rate_limit_tracker = {}
 
 def init_csv_stores():
     """Initializes chat histories and user accounts storage safely."""
@@ -121,15 +133,40 @@ def log_security_event(event_type, username, ip, port, details):
         print(f"[-] Security Log Error: {e}")
 
 def hash_password(password):
-    """Secure password storage using SHA-256 hashing."""
+    """Task 2: Secure password storage using SHA-256 hashing."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def is_valid_username(username):
-    """Alphanumeric constraint on usernames (3-15 characters)."""
+    """Task 4: Alphanumeric constraint on usernames (3-15 characters)."""
     return bool(re.match(r"^[a-zA-Z0-9_]{3,15}$", username))
 
+def sanitize_input(text):
+    """Task 5: Strips dangerous control characters and escapes HTML/XSS payloads."""
+    if not text:
+        return ""
+    # Strip non-printable ASCII / control characters
+    cleaned = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    # Escape HTML entities to prevent client-side script rendering
+    return html.escape(cleaned.strip())
+
+def is_rate_limited(username):
+    """Task 5: Anti-Spam check evaluating message window limits per user."""
+    now = time.time()
+    with rate_limit_lock:
+        timestamps = rate_limit_tracker.get(username, [])
+        # Keep timestamps within the configured active time window
+        timestamps = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+        
+        if len(timestamps) >= RATE_LIMIT_MAX_MSGS:
+            rate_limit_tracker[username] = timestamps
+            return True  # Rate limit exceeded
+            
+        timestamps.append(now)
+        rate_limit_tracker[username] = timestamps
+        return False  # Allowed
+
 def authenticate_user(username, password):
-    """Handles secure user verification and auto-registration."""
+    """Task 2: Handles secure user verification and auto-registration."""
     pwd_hash = hash_password(password)
     users = {}
     
@@ -159,6 +196,7 @@ def authenticate_user(username, password):
             return "AUTH_ERROR"
 
 def fetch_historical_catchup(username):
+    """Retrieves last 5 sent messages for state recovery upon reconnect."""
     records = []
     if not os.path.exists(HISTORY_FILE):
         return records
@@ -176,6 +214,7 @@ def fetch_historical_catchup(username):
     return records[-5:]
 
 def update_and_display_dashboard():
+    """Prints active server telemetry to console."""
     with client_lock:
         active_count = sum(1 for c in clients.values() if c["status"] == "ONLINE")
     with stats_lock:
@@ -187,7 +226,7 @@ def update_and_display_dashboard():
         print("===============================================\n")
 
 def broadcast_system_message(text_content, exclude_user=None):
-    """Scalable broadcast using Snapshot pattern."""
+    """Task 3: Scalable broadcast using Snapshot pattern to eliminate lock contention."""
     with client_lock:
         targets = [
             (user, metadata["socket"]) 
@@ -227,16 +266,27 @@ def handle_client_worker(client_socket, client_address):
     ip, port = client_address
     username = None
     
+    # Task 1: TCP keepalive activation
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
     
     try:
-        auth_payload = client_socket.recv(1024).decode('utf-8').strip()
+        auth_payload = client_socket.recv(1024).decode('utf-8', errors='ignore').strip()
         if not auth_payload or "||" not in auth_payload:
             client_socket.sendall("AUTH_FAIL:Invalid authentication protocol.".encode('utf-8'))
             client_socket.close()
             return
         
         username_payload, password_payload = auth_payload.split("||", 1)
+        
+        # Task 5: Guard against protocol delimiter injection
+        if "||" in username_payload or "||" in password_payload:
+            client_socket.sendall("AUTH_FAIL:Security alert: Illegal delimiter '||' detected.".encode('utf-8'))
+            log_security_event("injection_attempt", username_payload, ip, port, "Attempted protocol delimiter injection.")
+            client_socket.close()
+            return
+
+        # Task 5: Input Sanitization
+        username_payload = sanitize_input(username_payload)
         
         if not is_valid_username(username_payload):
             client_socket.sendall("AUTH_FAIL:Username must be 3-15 characters (alphanumeric only).".encode('utf-8'))
@@ -252,6 +302,7 @@ def handle_client_worker(client_socket, client_address):
 
         now = datetime.datetime.now()
         
+        # Task 2: Lockout Protection Check
         if username_payload in lockouts:
             if now < lockouts[username_payload]:
                 remaining_sec = int((lockouts[username_payload] - now).total_seconds())
@@ -286,6 +337,7 @@ def handle_client_worker(client_socket, client_address):
             client_socket.close()
             return
             
+        # Task 3: Concurrent Duplicate Login Prevention
         with client_lock:
             if username_payload in clients and clients[username_payload]["status"] == "ONLINE":
                 client_socket.sendall("AUTH_FAIL:User already logged in from another location.".encode('utf-8'))
@@ -293,6 +345,7 @@ def handle_client_worker(client_socket, client_address):
                 client_socket.close()
                 return
 
+        # Login Approved - Clear failure counts and register session
         username = username_payload
         failed_attempts[username] = 0 
         login_time = datetime.datetime.now().strftime("%H:%M:%S")
@@ -324,15 +377,25 @@ def handle_client_worker(client_socket, client_address):
         
         update_and_display_dashboard()
         
+        # Primary Socket Reception Loop
         while True:
             raw_data = client_socket.recv(4096)
             if not raw_data:
                 break
                 
-            incoming_text = raw_data.decode('utf-8').strip()
+            incoming_text = raw_data.decode('utf-8', errors='ignore').strip()
             if not incoming_text:
                 continue
                 
+            # Task 5: Anti-Spam Rate Limiting Check
+            if is_rate_limited(username):
+                client_socket.sendall("SYSTEM:ERROR Rate limit exceeded. Slow down your messages!".encode('utf-8'))
+                log_security_event("rate_limit_exceeded", username, ip, port, "Temporarily throttled due to message flooding.")
+                continue
+
+            # Task 5: Sanitize incoming message content
+            incoming_text = sanitize_input(incoming_text)
+            
             with client_lock:
                 if username in clients:
                     clients[username]["last_activity"] = datetime.datetime.now()
@@ -400,10 +463,15 @@ def handle_client_worker(client_socket, client_address):
     except Exception as e:
         print(f"[-] Processing exception on user '{username if username else ip}': {e}")
     finally:
+        # Task 1 & Task 5: Complete Resource Cleanup
         if username:
             with client_lock:
                 if username in clients:
                     del clients[username]
+            
+            with rate_limit_lock:
+                if username in rate_limit_tracker:
+                    del rate_limit_tracker[username]
             
             print(f"DISCONNECTED : {username}")
             broadcast_system_message(f"LEAVE:{username}")
@@ -416,7 +484,7 @@ def handle_client_worker(client_socket, client_address):
             pass
 
 def graceful_server_shutdown(engine):
-    """Gracefully notifies all clients and releases sockets on server shutdown."""
+    """Task 2: Gracefully notifies all clients and releases sockets on server shutdown."""
     print("\n[*] Initiating graceful server shutdown...")
     with client_lock:
         for user, metadata in list(clients.items()):
