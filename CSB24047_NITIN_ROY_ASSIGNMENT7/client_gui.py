@@ -210,7 +210,7 @@ class ChatClientGUI:
             try:
                 data = self.sock.recv(4096)
                 if not data:
-                    self.root.after(0, lambda: self.graceful_revert_to_login("Connection closed by remote host."))
+                    self.root.after(0, lambda: self.graceful_revert_to_login("Connection closed by server."))
                     break
                 
                 decoded_data = data.decode('utf-8')
@@ -251,8 +251,15 @@ class ChatClientGUI:
                 else:
                     self.root.after(0, lambda msg=decoded_data: self.append_message(msg))
                     
-            except Exception:
-                self.root.after(0, lambda: self.graceful_revert_to_login("System Link lost unexpectedly."))
+            except ConnectionResetError:
+                self.root.after(0,lambda:self.graceful_revert_to_login("Error : The server unexpectedly dropped the connection."))
+                break
+
+            except ConnectionAbortedError:
+                self.root.after(0,lambda:self.graceful_revert_to_login("Error: Connection aborted dute to netwokr failure."))        
+                break
+            except Exception as e:
+                self.root.after(0, lambda: e=e.graceful_revert_to_login(f"Network error occured: {str(e)}"))
                 break
 
 
